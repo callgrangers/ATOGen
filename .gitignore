@@ -1,0 +1,23 @@
+# Server-side backend source (keep local, never publish)
+*.gs
+*.bak
+
+# Local prayer server (development-only runtime files)
+backend/prayer-server/node_modules/
+backend/prayer-server/.env
+backend/prayer-server/.env.local
+
+# Setup / secrets documentation
+*.txt
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+
+# Local-only shell variants (never publish)
+pages/AOS1L.html
+index-local.html
+pages/tbc_care.html
+test.html

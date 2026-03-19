@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ATOG(en) OS v1.9</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background-color: #000000 !important;
+            overflow: hidden;
+        }
+
+        .viewport-wrapper {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #000000;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .viewport-wrapper.ready {
+            opacity: 1;
+        }
+
+        iframe {
+            width: 100%; height: 100%;
+            border: none; display: block;
+            background-color: #000000;
+        }
+
+        /* ── Loading overlay ── */
+        #starlink-overlay {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(1200px 600px at 10% -10%, rgba(34, 211, 238, 0.12), transparent 60%),
+                radial-gradient(900px 500px at 90% 110%, rgba(248, 213, 143, 0.08), transparent 65%),
+                #000;
+            display: none !important;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 9999;
+            transition: opacity 0.8s ease;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        #starlink-overlay.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .starlink-sat {
+            font-size: 2.4rem;
+            animation: orbit 2.4s linear infinite;
+            display: inline-block;
+        }
+        @keyframes orbit {
+            0%   { transform: rotate(0deg)   translateX(28px) rotate(0deg); }
+            100% { transform: rotate(360deg) translateX(28px) rotate(-360deg); }
+        }
+
+        .starlink-title {
+            font-family: 'Courier New', monospace;
+            color: #00e5ff;
+            font-size: 1.1rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .boot-shell {
+            width: min(680px, calc(100vw - 32px));
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 14px;
+            background: rgba(2, 6, 23, 0.8);
+            box-shadow: 0 12px 36px rgba(0,0,0,0.55);
+            padding: 14px;
+        }
+
+        .boot-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Courier New', monospace;
+            color: #5f7288;
+            font-size: 0.78rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 6px 4px;
+            transition: color 0.25s ease;
+        }
+
+        .boot-step.done {
+            color: #8ab4d6;
+        }
+
+        .boot-step.active {
+            color: #d7f2ff;
+            text-shadow: 0 0 12px rgba(34, 211, 238, 0.45);
+        }
+
+        .boot-bullet {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(15, 23, 42, 0.9);
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+            flex: 0 0 10px;
+        }
+
+        .boot-step.done .boot-bullet,
+        .boot-step.active .boot-bullet {
+            border-color: rgba(34, 211, 238, 0.7);
+            background: #22d3ee;
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.9);
+        }
+
+        .boot-progress {
+            width: min(680px, calc(100vw - 32px));
+            height: 5px;
+            border-radius: 999px;
+            background: rgba(100, 116, 139, 0.28);
+            overflow: hidden;
+        }
+
+        .boot-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #22d3ee, #38bdf8, #f8d58f);
+            transition: width 0.35s ease;
+        }
+
+        .starlink-sub {
+            font-family: 'Courier New', monospace;
+            color: #496074;
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-align: center;
+            line-height: 1.7;
+            text-transform: uppercase;
+        }
+
+        .starlink-retry {
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            color: #7dd3fc;
+            font-size: 0.68rem;
+            letter-spacing: 0.06em;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 220ms ease;
+        }
+
+        .starlink-retry.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading overlay -->
+    <div id="starlink-overlay">
+        <div class="starlink-sat">🛰️</div>
+        <div class="starlink-title">Remote Link Bootstrap</div>
+        <div class="boot-shell" id="boot-sequence">
+            <div class="boot-step" id="boot-step-1"><span class="boot-bullet"></span><span>Contacting Starlink</span></div>
+            <div class="boot-step" id="boot-step-2"><span class="boot-bullet"></span><span>Establishing Secure Connection</span></div>
+            <div class="boot-step" id="boot-step-3"><span class="boot-bullet"></span><span id="boot-connection-text">Connected to (Connection 1)</span></div>
+            <div class="boot-step" id="boot-step-4"><span class="boot-bullet"></span><span>Rendering Remote Terminal</span></div>
+            <div class="boot-step" id="boot-step-5"><span class="boot-bullet"></span><span>Remote Terminal Ready</span></div>
+        </div>
+        <div class="boot-progress"><div class="boot-progress-bar" id="boot-progress-bar"></div></div>
+        <div class="starlink-sub">
+            Orbital relay online<br>
+            Initializing secure remote display
+        </div>
+        <div class="starlink-retry" id="boot-retry-message" aria-live="polite"></div>
+    </div>
+
+    <div class="viewport-wrapper">
+        <iframe
+            id="os-frame"
+            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+            allowfullscreen>
+        </iframe>
+    </div>
+
+    <script>
+        (function() {
+            const frame = document.getElementById('os-frame');
+            const overlay = document.getElementById('starlink-overlay');
+            const viewport = document.querySelector('.viewport-wrapper');
+            const progressBar = document.getElementById('boot-progress-bar');
+            const connectionText = document.getElementById('boot-connection-text');
+            const retryMessage = document.getElementById('boot-retry-message');
+            if (!frame || !overlay || !viewport || !progressBar || !connectionText) return;
+
+            const CANONICAL_ORIGIN = String(window.AUTH_CANONICAL_ORIGIN || window.location.origin).trim();
+            const CANONICAL_BASE_PATH = (function() {
+                const configured = String(window.AUTH_CANONICAL_BASE_PATH || '').trim();
+                if (configured) {
+                    const withSlash = configured.startsWith('/') ? configured : `/${configured}`;
+                    return withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash;
+                }
+                const pathname = String(window.location.pathname || '/').trim() || '/';
+                const parts = pathname.split('/').filter(Boolean);
+                return parts.length ? `/${parts[0]}` : '/ATOGen';
+            })();
+
+            const isLocalPreview = (
+                window.location.protocol === 'file:' ||
+                window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1'
+            );
+
+            if (!isLocalPreview) {
+                const canonicalIndex = `${CANONICAL_ORIGIN}${CANONICAL_BASE_PATH}/`;
+                const onCanonicalOrigin = window.location.origin === CANONICAL_ORIGIN;
+                const onCanonicalPath = window.location.pathname.startsWith(`${CANONICAL_BASE_PATH}/`) || window.location.pathname === CANONICAL_BASE_PATH;
+
+                if (!onCanonicalOrigin || !onCanonicalPath) {
+                    window.location.replace(`${canonicalIndex}${window.location.search}${window.location.hash}`);
+                    return;
+                }
+            }
+
+            const shellVersion = '20260318v19';
+            const FRAME_BOOT_TIMEOUT_MS = 12000;
+            const searchParams = new URLSearchParams(window.location.search || '');
+            const forceToken = String(searchParams.get('force') || '').trim();
+            const ua = String(navigator.userAgent || '');
+            const isSafari = /safari/i.test(ua) && !/chrome|chromium|crios|android/i.test(ua);
+            const isStandalone = (
+                (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                window.navigator.standalone === true
+            );
+
+            // Force a fresh iframe URL on every load so release changes are never pinned by browser cache.
+            const runtimeToken = forceToken || `${shellVersion}-${Date.now()}`;
+            const encodedVersion = encodeURIComponent(shellVersion);
+            const encodedRuntime = encodeURIComponent(runtimeToken);
+
+            frame.src = isLocalPreview
+                ? `pages/AOSa.html?v=${encodedVersion}&rt=${encodedRuntime}`
+                : `${CANONICAL_ORIGIN}${CANONICAL_BASE_PATH}/pages/AOSa.html?v=${encodedVersion}&rt=${encodedRuntime}`;
+
+            const randomConnection = Math.floor(Math.random() * 3) + 1;
+            connectionText.textContent = `Connected to (Connection ${randomConnection})`;
+
+            let frameLoaded = false;
+            let frameFailed = false;
+            let currentStep = 0;
+            let retryMessageShown = false;
+            const bootStartedAt = Date.now();
+
+            const stepIds = [
+                'boot-step-1',
+                'boot-step-2',
+                'boot-step-3',
+                'boot-step-4',
+                'boot-step-5'
+            ];
+
+            function paintStep(stepNumber) {
+                currentStep = stepNumber;
+                stepIds.forEach((id, idx) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.classList.remove('active', 'done');
+                    if (idx + 1 < stepNumber) el.classList.add('done');
+                    if (idx + 1 === stepNumber) el.classList.add('active');
+                });
+                progressBar.style.width = `${Math.round((stepNumber - 1) * 25)}%`;
+            }
+
+            function markDone(stepNumber) {
+                const el = document.getElementById(`boot-step-${stepNumber}`);
+                if (el) {
+                    el.classList.remove('active');
+                    el.classList.add('done');
+                }
+            }
+
+            function revealTerminal() {
+                progressBar.style.width = '100%';
+                overlay.classList.add('fade-out');
+                viewport.classList.add('ready');
+                setTimeout(function() { overlay.remove(); }, 900);
+            }
+
+            function showRetryMessage() {
+                if (!retryMessage || retryMessageShown) return;
+                retryMessageShown = true;
+                retryMessage.textContent = 'Retrying on one of the alternate servers, please wait.';
+                retryMessage.classList.add('show');
+            }
+
+            frame.addEventListener('load', function() {
+                frameLoaded = true;
+            });
+
+            frame.addEventListener('error', function() {
+                frameFailed = true;
+                showRetryMessage();
+            });
+
+            paintStep(1);
+            setTimeout(function() {
+                markDone(1);
+                paintStep(2);
+
+                setTimeout(function() {
+                    markDone(2);
+                    paintStep(3);
+
+                    setTimeout(function() {
+                        markDone(3);
+                        paintStep(4);
+
+                        setTimeout(function waitForFrameThenFinish() {
+                            if (!frameLoaded) {
+                                const timedOut = (Date.now() - bootStartedAt) > FRAME_BOOT_TIMEOUT_MS;
+                                if (frameFailed || timedOut) {
+                                    showRetryMessage();
+                                    frameLoaded = true;
+                                }
+                                setTimeout(waitForFrameThenFinish, 180);
+                                return;
+                            }
+
+                            markDone(4);
+                            paintStep(5);
+
+                            setTimeout(function() {
+                                markDone(5);
+                                revealTerminal();
+                            }, 420);
+                        }, 520);
+                    }, 520);
+                }, 520);
+            }, 520);
+        })();
+    </script>
+
+</body>
+</html>

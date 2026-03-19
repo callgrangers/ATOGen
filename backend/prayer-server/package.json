@@ -1,0 +1,19 @@
+{
+  "name": "atog-prayer-server",
+  "version": "1.0.0",
+  "private": true,
+  "main": "prayer-server.js",
+  "scripts": {
+    "start": "node prayer-server.js",
+    "dev": "nodemon prayer-server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
